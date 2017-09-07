@@ -1,5 +1,6 @@
 package dev.klippe.simplevideo;
 
+import android.annotation.TargetApi;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -13,6 +14,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -24,6 +27,7 @@ import android.widget.MediaController;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 import android.widget.VideoView;
+import android.Manifest;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -32,43 +36,67 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements ProgressTimer.OnTimer {
 
+    public static final int PERMISSION_REQUEST_CODE = 200;
+    public static int LIBRARY_REQUEST = 1;
+
     private ImageView galery, flash, front, record, back;
     private ProgressBar progress;
     private ProgressDialog progressDialog;
     private FrameLayout myCameraPreview;
     private VideoView videoView;
-    private String videoPath;
     public MediaController mediaController;
-
     public Camera myCamera;
     public CameraPreview mPreview;
     private MediaRecorder mediaRecorder;
+    public int camId = 0;
+
+    private Handler handler;
+    private String videoPath;
+    private Runnable runnable;
+
     private ProgressTimer progressTimer;
     private int timerProgress = 100;
-    int camId = 0;
 
+    public int countClickTouch = 0;
     boolean isFlashOn = false;
     boolean isFrontCam = false;
-    public static int LIBRARY_REQUEST = 1;
-    public int countClickTouch = 0;
     public boolean flagClickTouch = false;
-    private Handler handler;
-    private Runnable runnable;
+    private boolean permissionsFlag = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_main);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            checkPermission();
+    }
 
-        initView();
-
-        if (myCamera == null) {
-            Toast.makeText(MainActivity.this,
-                    "Fail to get Camera",
-                    Toast.LENGTH_LONG).show();
+    @TargetApi(Build.VERSION_CODES.M)
+    private void checkPermission() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestMultiplePermissions();
         }
-        listeners();
+    }
+
+    public void requestMultiplePermissions() {
+        ActivityCompat.requestPermissions(this,
+                new String[]{
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                },
+                PERMISSION_REQUEST_CODE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != PERMISSION_REQUEST_CODE) {
+            requestMultiplePermissions();
+        } else {
+            permissionsFlag = true;
+        }
     }
 
     private void initView() {
@@ -161,34 +189,13 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
                     case MotionEvent.ACTION_UP:
                         if (flagClickTouch) {
                             if (countClickTouch > 0) {
-                                mediaRecorder.stop();  // stop the recording
-                                progressTimer.cancel();
-                                myCamera.lock();
-                                countClickTouch = 0;
-                                releaseMediaRecorder(); // release the MediaRecorder object
-                                record.setImageResource(android.R.drawable.presence_video_online);
-                                stateViewScreen(true);
+                                stopRecording();
                             }
                         } else
                             handler.removeCallbacks(runnable);
                         break;
                 }
                 return false;
-            }
-        });
-        record.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                /*if(countClickTouch > 0){
-                    mediaRecorder.stop();  // stop the recording
-                    progressTimer.cancel();
-                    myCamera.lock();
-                    countClickTouch = 0;
-                    releaseMediaRecorder(); // release the MediaRecorder object
-                    record.setImageResource(android.R.drawable.presence_video_online);
-                    stateViewScreen(true);
-                }*/
-                Log.e("QWE", "asd");
             }
         });
 
@@ -198,6 +205,16 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
                 stateViewScreen(false);
             }
         });
+    }
+
+    public void stopRecording() {
+        mediaRecorder.stop();
+        progressTimer.cancel();
+        myCamera.lock();
+        countClickTouch = 0;
+        releaseMediaRecorder();
+        record.setImageResource(android.R.drawable.presence_video_online);
+        stateViewScreen(true);
     }
 
     public void startRecording() {
@@ -210,6 +227,7 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
                     Toast.LENGTH_LONG).show();
             finish();
         }
+
         flagClickTouch = true;
         mediaRecorder.start();
         progressTimer = new ProgressTimer(timerProgress * 100, 100);
@@ -302,7 +320,6 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
         }
 
         mediaRecorder = new MediaRecorder();
-
         myCamera.unlock();
         mediaRecorder.setCamera(myCamera);
         if (isFrontCam) {
@@ -311,14 +328,11 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
             mediaRecorder.setOrientationHint(90);
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
-
         mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
-
         mediaRecorder.setOutputFile("/sdcard/" + "Simple-" + getFileName_CustomFormat() + ".mp4");
         videoPath = "/sdcard/" + "Simple-" + getFileName_CustomFormat() + ".mp4";
         mediaRecorder.setMaxDuration(10000);    //10 sec
         mediaRecorder.setMaxFileSize(100000000); //100 mb
-
         mediaRecorder.setPreviewDisplay(mPreview.getHolder().getSurface());
 
         try {
@@ -339,7 +353,6 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == LIBRARY_REQUEST) {
             if (resultCode == RESULT_OK) {
-                //region GALERY
                 Uri selectedImageUri = data.getData();
                 try {
                     String[] filePathColumn = {MediaStore.Video.Media.DATA};
@@ -356,7 +369,6 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                //endregion
             }
         }
     }
@@ -364,33 +376,42 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     @Override
     protected void onPause() {
         super.onPause();
-        releaseMediaRecorder();       // if you are using MediaRecorder, release it first
-        releaseCamera();              // release the camera immediately on pause event
+        releaseMediaRecorder();
+        releaseCamera();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (myCamera == null) {
-            myCamera = getCameraInstance(camId);
-            mPreview.refreshCamera(myCamera);
-            timerProgress = 100;
-            progress.setProgress(0);
+        if (permissionsFlag) {
+            initView();
+            if (myCamera == null) {
+                Toast.makeText(MainActivity.this,
+                        "Fail to get Camera",
+                        Toast.LENGTH_LONG).show();
+            }
+            listeners();
+            if (myCamera == null) {
+                myCamera = getCameraInstance(camId);
+                mPreview.refreshCamera(myCamera);
+                timerProgress = 100;
+                progress.setProgress(0);
+            }
         }
     }
 
     private void releaseMediaRecorder() {
         if (mediaRecorder != null) {
-            mediaRecorder.reset();   // clear recorder configuration
-            mediaRecorder.release(); // release the recorder object
+            mediaRecorder.reset();
+            mediaRecorder.release();
             mediaRecorder = new MediaRecorder();
-            myCamera.lock();           // lock camera for later use
+            myCamera.lock();
         }
     }
 
     private void releaseCamera() {
         if (myCamera != null) {
-            myCamera.release();        // release the camera for other applications
+            myCamera.release();
             myCamera = null;
         }
     }
@@ -406,11 +427,11 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     @Override
     public void setProgressMax() {
         progress.setProgress(progress.getMax());
-        mediaRecorder.stop();  // stop the recording
+        mediaRecorder.stop();
         progressTimer.cancel();
         myCamera.lock();
         countClickTouch = 0;
-        releaseMediaRecorder(); // release the MediaRecorder object
+        releaseMediaRecorder();
         record.setImageResource(android.R.drawable.presence_video_online);
         stateViewScreen(true);
     }
