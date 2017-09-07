@@ -1,5 +1,6 @@
 package dev.klippe.simplevideo;
 
+import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.ProgressDialog;
 import android.content.Intent;
@@ -27,7 +28,6 @@ import android.widget.MediaController;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 import android.widget.VideoView;
-import android.Manifest;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -44,11 +44,12 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     private ProgressDialog progressDialog;
     private FrameLayout myCameraPreview;
     private VideoView videoView;
-    public MediaController mediaController;
-    public Camera myCamera;
-    public CameraPreview mPreview;
+
+    private MediaController mediaController;
+    private Camera myCamera;
+    private CameraPreview mPreview;
     private MediaRecorder mediaRecorder;
-    public int camId = 0;
+    private int camId = 0;
 
     private Handler handler;
     private String videoPath;
@@ -57,10 +58,10 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     private ProgressTimer progressTimer;
     private int timerProgress = 100;
 
-    public int countClickTouch = 0;
-    boolean isFlashOn = false;
-    boolean isFrontCam = false;
-    public boolean flagClickTouch = false;
+    private int countClickTouch = 0;
+    private boolean isFlashOn = false;
+    private boolean isFrontCam = false;
+    private boolean flagClickTouch = false;
     private boolean permissionsFlag = false;
 
     @Override

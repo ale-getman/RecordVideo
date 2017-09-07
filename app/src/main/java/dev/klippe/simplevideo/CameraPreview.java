@@ -56,14 +56,11 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
                         || (Build.MODEL.endsWith("MEIZU MX3"))) && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
 
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-                }
-                else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
+                } else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
-                }
-                else if ((Build.MODEL.startsWith("GT"))) {
+                } else if ((Build.MODEL.startsWith("GT"))) {
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-                }
-                else
+                } else
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
             }
             mCamera.setParameters(params);
@@ -75,18 +72,12 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
 
     public void refreshCamera(Camera camera) {
         if (mHolder.getSurface() == null) {
-            // preview surface does not exist
             return;
         }
-        // stop preview before making changes
         try {
             mCamera.stopPreview();
         } catch (Exception e) {
-            // ignore: tried to stop a non-existent preview
         }
-        // set preview size and make any resize, rotate or
-        // reformatting changes here
-        // start preview with new settings
         setCamera(camera);
         try {
             mCamera.setPreviewDisplay(mHolder);
@@ -100,14 +91,11 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
                         || (Build.MODEL.endsWith("MEIZU MX3"))) && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
 
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-                }
-                else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
+                } else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
-                }
-                else if ((Build.MODEL.startsWith("GT"))) {
+                } else if ((Build.MODEL.startsWith("GT"))) {
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-                }
-                else
+                } else
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
             }
             mCamera.setParameters(params);
@@ -117,7 +105,6 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
     }
 
     public void setCamera(Camera camera) {
-        //method to set a camera instance
         mCamera = camera;
         mCamera.setDisplayOrientation(90);
     }
