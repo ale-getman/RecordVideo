@@ -10,6 +10,8 @@ import android.view.SurfaceView;
 import java.io.IOException;
 import java.util.List;
 
+import static dev.klippe.simplevideo.MainActivity.getOptimalVideoSize;
+
 public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback {
     private SurfaceHolder mHolder;
     private Camera mCamera;
@@ -63,6 +65,11 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
                 } else
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
             }
+            List<Camera.Size> mSupportedPreviewSizes = params.getSupportedPreviewSizes();
+            List<Camera.Size> mSupportedVideoSizes = params.getSupportedVideoSizes();
+            Camera.Size optimalSize = getOptimalVideoSize(mSupportedVideoSizes,
+                    mSupportedPreviewSizes, 1280, 720);
+            params.setPreviewSize(optimalSize.width, optimalSize.height);
             mCamera.setParameters(params);
 
         } catch (Exception e) {
@@ -98,6 +105,11 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
                 } else
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
             }
+            List<Camera.Size> mSupportedPreviewSizes = params.getSupportedPreviewSizes();
+            List<Camera.Size> mSupportedVideoSizes = params.getSupportedVideoSizes();
+            Camera.Size optimalSize = getOptimalVideoSize(mSupportedVideoSizes,
+                    mSupportedPreviewSizes, 1280, 720);
+            params.setPreviewSize(optimalSize.width, optimalSize.height);
             mCamera.setParameters(params);
         } catch (Exception e) {
             Log.d(VIEW_LOG_TAG, "Error starting camera preview: " + e.getMessage());

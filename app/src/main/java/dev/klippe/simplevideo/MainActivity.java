@@ -2,10 +2,13 @@ package dev.klippe.simplevideo;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.database.Cursor;
+import android.graphics.drawable.GradientDrawable;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
@@ -19,13 +22,17 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.MediaController;
 import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
 
@@ -34,22 +41,27 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements ProgressTimer.OnTimer {
+public class MainActivity extends Activity implements ProgressTimer.OnTimer {
 
     public static final int PERMISSION_REQUEST_CODE = 200;
     public static int LIBRARY_REQUEST = 1;
 
-    private ImageView galery, flash, front, record, back;
+    private ImageView flash, front, record, back;
+    private TextView gallery;
     private ProgressBar progress;
-    private ProgressDialog progressDialog;
     private FrameLayout myCameraPreview;
     private VideoView videoView;
+    private RelativeLayout relativeTop, relativeBot;
 
     private MediaController mediaController;
     private Camera myCamera;
     private CameraPreview mPreview;
     private MediaRecorder mediaRecorder;
     private int camId = 0;
+
+    public WindowManager windowManager;
+    public Display display;
+    public int orientation = 1;
 
     private Handler handler;
     private String videoPath;
@@ -67,16 +79,29 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+//        fullScrenn();
         setContentView(R.layout.activity_main);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             checkPermission();
+    }
+
+    public void fullScrenn() {
+        if (Build.VERSION.SDK_INT < 16) {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        } else {
+            View decorView = getWindow().getDecorView();
+            int uiOptions = View.SYSTEM_UI_FLAG_FULLSCREEN;
+            decorView.setSystemUiVisibility(uiOptions);
+        }
     }
 
     @TargetApi(Build.VERSION_CODES.M)
     private void checkPermission() {
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             requestMultiplePermissions();
-        }
+        } else
+            permissionsFlag = true;
     }
 
     public void requestMultiplePermissions() {
@@ -101,13 +126,15 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     }
 
     private void initView() {
-        galery = (ImageView) findViewById(R.id.galery);
+        gallery = (TextView) findViewById(R.id.gallery);
         flash = (ImageView) findViewById(R.id.flash);
         front = (ImageView) findViewById(R.id.front);
         record = (ImageView) findViewById(R.id.record);
         back = (ImageView) findViewById(R.id.back);
         progress = (ProgressBar) findViewById(R.id.progress);
         videoView = (VideoView) findViewById(R.id.showVideo);
+        relativeBot = (RelativeLayout) findViewById(R.id.relative_bot);
+        relativeTop = (RelativeLayout) findViewById(R.id.relative_top);
         handler = new Handler(Looper.getMainLooper());
 
         runnable = new Runnable() {
@@ -121,19 +148,22 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
         mediaController.setAnchorView(videoView);
 
         myCamera = getCameraInstance(camId);
+        Camera.Parameters params = myCamera.getParameters();
+        List<Camera.Size> mSupportedPreviewSizes = params.getSupportedPreviewSizes();
+        List<Camera.Size> mSupportedVideoSizes = params.getSupportedVideoSizes();
+        Camera.Size optimalSize = getOptimalVideoSize(mSupportedVideoSizes,
+                mSupportedPreviewSizes, 1280, 720);
+        params.setPreviewSize(optimalSize.width, optimalSize.height);
+        myCamera.setParameters(params);
+
         mPreview = new CameraPreview(this, myCamera);
         myCameraPreview = (FrameLayout) findViewById(R.id.frameVideo);
+        myCameraPreview.removeAllViews();
         myCameraPreview.addView(mPreview);
-
-        progressDialog = new ProgressDialog(this);
-        progressDialog.setTitle("Please Wait");
-        progressDialog.setMessage("Your video is preparing...");
-        progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-        progressDialog.setCanceledOnTouchOutside(false);
     }
 
     private void listeners() {
-        galery.setOnClickListener(new View.OnClickListener() {
+        gallery.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Intent selectIntent = new Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI);
@@ -191,6 +221,7 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
                         if (flagClickTouch) {
                             if (countClickTouch > 0) {
                                 stopRecording();
+                                flagClickTouch = false;
                             }
                         } else
                             handler.removeCallbacks(runnable);
@@ -214,12 +245,10 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
         myCamera.lock();
         countClickTouch = 0;
         releaseMediaRecorder();
-        record.setImageResource(android.R.drawable.presence_video_online);
         stateViewScreen(true);
     }
 
     public void startRecording() {
-        record.setImageResource(android.R.drawable.presence_video_busy);
         releaseCamera();
 
         if (!prepareMediaRecorder()) {
@@ -238,29 +267,24 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
 
     public void stateViewScreen(boolean f) {
         if (f) {
-            videoView.setVisibility(View.VISIBLE);
-            back.setVisibility(View.VISIBLE);
-            progress.setVisibility(View.GONE);
-            myCameraPreview.setVisibility(View.INVISIBLE);
             mPreview.setLayoutParams(new FrameLayout.LayoutParams(1, 1));
-            record.setVisibility(View.GONE);
-            front.setVisibility(View.GONE);
-            flash.setVisibility(View.GONE);
-            galery.setVisibility(View.GONE);
+
+            relativeBot.setVisibility(View.GONE);
+            myCameraPreview.setVisibility(View.INVISIBLE);
+            videoView.setVisibility(View.VISIBLE);
+            relativeTop.setVisibility(View.VISIBLE);
 
             videoView.setVideoURI(Uri.parse(videoPath));
-            videoView.setMediaController(mediaController);
+//            videoView.setMediaController(mediaController);
             videoView.start();
         } else {
-            videoView.setVisibility(View.GONE);
-            back.setVisibility(View.GONE);
-            progress.setVisibility(View.VISIBLE);
-            myCameraPreview.setVisibility(View.VISIBLE);
             mPreview.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-            record.setVisibility(View.VISIBLE);
-            front.setVisibility(View.VISIBLE);
-            flash.setVisibility(View.VISIBLE);
-            galery.setVisibility(View.VISIBLE);
+
+            relativeBot.setVisibility(View.VISIBLE);
+            myCameraPreview.setVisibility(View.VISIBLE);
+            videoView.setVisibility(View.GONE);
+            relativeTop.setVisibility(View.GONE);
+
             timerProgress = 100;
             progress.setProgress(0);
         }
@@ -304,6 +328,7 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
             myCamera = getCameraInstance(camId);
             Camera.Parameters params = myCamera.getParameters();
             List<String> focusModes = params.getSupportedFocusModes();
+
             if (focusModes != null) {
                 Log.i("video", Build.MODEL);
                 if (((Build.MODEL.startsWith("GT-I950")) || (Build.MODEL.endsWith("SCH-I959"))
@@ -316,17 +341,72 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
                 } else
                     params.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
             }
+
+            if (!isFlashOn)
+                params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            else
+                params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+
+            List<Camera.Size> mSupportedPreviewSizes = params.getSupportedPreviewSizes();
+            List<Camera.Size> mSupportedVideoSizes = params.getSupportedVideoSizes();
+            Camera.Size optimalSize = getOptimalVideoSize(mSupportedVideoSizes,
+                    mSupportedPreviewSizes, 1280, 720);
+
+            params.setPreviewSize(optimalSize.width, optimalSize.height);
             myCamera.setParameters(params);
-            myCamera.setDisplayOrientation(90);
+            switch(orientation){
+                case 0:
+                    myCamera.setDisplayOrientation(90);
+                    break;
+                case 1:
+                    myCamera.setDisplayOrientation(0);
+                    break;
+                case 2:
+                    myCamera.setDisplayOrientation(270);
+                    break;
+                case 3:
+                    myCamera.setDisplayOrientation(180);
+                    break;
+            }
         }
 
         mediaRecorder = new MediaRecorder();
         myCamera.unlock();
         mediaRecorder.setCamera(myCamera);
+        Log.e("LOGI", "orientation " + getResources().getConfiguration().orientation);
         if (isFrontCam) {
-            mediaRecorder.setOrientationHint(270);
-        } else
-            mediaRecorder.setOrientationHint(90);
+            switch(orientation) {
+                case 0:
+                    mediaRecorder.setOrientationHint(270);
+                    break;
+                case 1:
+                    mediaRecorder.setOrientationHint(0);
+                    break;
+                case 2:
+                    mediaRecorder.setOrientationHint(90);
+                    break;
+                case 3:
+                    mediaRecorder.setOrientationHint(180);
+                    break;
+            }
+        } else {
+            switch(orientation) {
+                case 0:
+                    mediaRecorder.setOrientationHint(90);
+                    break;
+                case 1:
+                    mediaRecorder.setOrientationHint(0);
+                    break;
+                case 2:
+                    mediaRecorder.setOrientationHint(270);
+                    break;
+                case 3:
+                    mediaRecorder.setOrientationHint(180);
+                    break;
+            }
+        }
+
+
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
         mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
@@ -347,6 +427,63 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
         }
         return true;
 
+    }
+
+    public static Camera.Size getOptimalVideoSize(List<Camera.Size> supportedVideoSizes,
+                                                  List<Camera.Size> previewSizes, int w, int h) {
+        final double ASPECT_TOLERANCE = 0.1;
+        double targetRatio = (double) w / h;
+
+        List<Camera.Size> videoSizes;
+        if (supportedVideoSizes != null) {
+            videoSizes = supportedVideoSizes;
+        } else {
+            videoSizes = previewSizes;
+        }
+        Camera.Size optimalSize = null;
+
+        double minDiff = Double.MAX_VALUE;
+
+        int targetHeight = h;
+
+        for (Camera.Size size : videoSizes) {
+            double ratio = (double) size.width / size.height;
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
+                continue;
+            if (Math.abs(size.height - targetHeight) < minDiff && previewSizes.contains(size)) {
+                optimalSize = size;
+                minDiff = Math.abs(size.height - targetHeight);
+            }
+        }
+
+        if (optimalSize == null) {
+            minDiff = Double.MAX_VALUE;
+            for (Camera.Size size : videoSizes) {
+                if (Math.abs(size.height - targetHeight) < minDiff && previewSizes.contains(size)) {
+                    optimalSize = size;
+                    minDiff = Math.abs(size.height - targetHeight);
+                }
+            }
+        }
+        return optimalSize;
+    }
+
+    private void releaseMediaRecorder() {
+        if (mediaRecorder != null) {
+            mediaRecorder.reset();
+            mediaRecorder.release();
+            mediaRecorder = new MediaRecorder();
+            myCamera.lock();
+        }
+    }
+
+    private void releaseCamera() {
+        Log.e("LOGI", "releaseCamera 1");
+        if (myCamera != null) {
+            Log.e("LOGI", "releaseCamera 2");
+            myCamera.release();
+            myCamera = null;
+        }
     }
 
     @Override
@@ -377,6 +514,7 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     @Override
     protected void onPause() {
         super.onPause();
+        Log.e("LOGI", "Pause");
         releaseMediaRecorder();
         releaseCamera();
     }
@@ -384,7 +522,15 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
     @Override
     protected void onResume() {
         super.onResume();
+        Log.e("LOGI", "Resume 1");
         if (permissionsFlag) {
+            Log.e("LOGI", "Resume 2");
+//            fullScrenn();
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+            display = windowManager.getDefaultDisplay();
+            orientation = display.getRotation();
+            Log.e("LOGI", "orientation " + orientation);
+
             initView();
             if (myCamera == null) {
                 Toast.makeText(MainActivity.this,
@@ -393,27 +539,42 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
             }
             listeners();
             if (myCamera == null) {
+                Log.e("LOGI", "Resume 3");
                 myCamera = getCameraInstance(camId);
                 mPreview.refreshCamera(myCamera);
+                switch(orientation){
+                    case 0:
+                        myCamera.setDisplayOrientation(90);
+                        break;
+                    case 1:
+                        myCamera.setDisplayOrientation(0);
+                        break;
+                    case 2:
+                        myCamera.setDisplayOrientation(270);
+                        break;
+                    case 3:
+                        myCamera.setDisplayOrientation(180);
+                        break;
+                }
                 timerProgress = 100;
                 progress.setProgress(0);
             }
-        }
-    }
-
-    private void releaseMediaRecorder() {
-        if (mediaRecorder != null) {
-            mediaRecorder.reset();
-            mediaRecorder.release();
-            mediaRecorder = new MediaRecorder();
-            myCamera.lock();
-        }
-    }
-
-    private void releaseCamera() {
-        if (myCamera != null) {
-            myCamera.release();
-            myCamera = null;
+            else{
+                switch(orientation){
+                    case 0:
+                        myCamera.setDisplayOrientation(90);
+                        break;
+                    case 1:
+                        myCamera.setDisplayOrientation(0);
+                        break;
+                    case 2:
+                        myCamera.setDisplayOrientation(270);
+                        break;
+                    case 3:
+                        myCamera.setDisplayOrientation(180);
+                        break;
+                }
+            }
         }
     }
 
@@ -433,7 +594,6 @@ public class MainActivity extends AppCompatActivity implements ProgressTimer.OnT
         myCamera.lock();
         countClickTouch = 0;
         releaseMediaRecorder();
-        record.setImageResource(android.R.drawable.presence_video_online);
         stateViewScreen(true);
     }
 }
